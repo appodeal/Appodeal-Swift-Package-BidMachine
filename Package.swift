@@ -11,7 +11,7 @@ let package = Package(
             targets: ["AppodealBidMachineAdapterWrapper"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/appodeal/Appodeal-Swift-Package.git", .upToNextMajor(from: "4.0.0")),
+        .package(url: "https://github.com/appodeal/Appodeal-Swift-Package.git", .upToNextMajor(from: "4.3.0")),
         .package(url: "https://github.com/bidmachine/BidMachine-SPM.git", exact: "3.7.1"),
     ],
     targets: [
