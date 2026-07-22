@@ -1,0 +1,112 @@
+name: Auto Tag Release
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+    paths:
+      - 'Package.swift'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-tag:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          
+      - name: Extract version from Package.swift
+        id: extract_version
+        run: |
+          # For adapters, extract version from the URL path
+          # Looking for patterns like /3.7.1.0/ in the binary target URL
+          VERSION=$(grep -oE '/[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/' Package.swift | head -1 | tr -d '/')
+          
+          if [ -z "$VERSION" ]; then
+            echo "❌ No adapter version found in Package.swift"
+            exit 1
+          fi
+          
+          # Convert to SPM tag format (e.g., 3.7.1.0 -> 3070100.0.0)
+          IFS='.' read -ra PARTS <<< "$VERSION"
+          MAJOR="${PARTS[0]}"
+          MINOR=$(printf "%02d" "${PARTS[1]}")
+          PATCH=$(printf "%02d" "${PARTS[2]}")
+          ADAPTER=$(printf "%02d" "${PARTS[3]:-0}")
+          
+          SPM_TAG="${MAJOR}${MINOR}${PATCH}${ADAPTER}.0.0"
+          
+          echo "✅ Found version: $VERSION"
+          echo "✅ SPM tag: $SPM_TAG"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "spm_tag=$SPM_TAG" >> $GITHUB_OUTPUT
+          
+      - name: Check if tag exists
+        id: check_tag
+        run: |
+          SPM_TAG="${{ steps.extract_version.outputs.spm_tag }}"
+          if git rev-parse "refs/tags/$SPM_TAG" >/dev/null 2>&1; then
+            echo "⚠️ Tag $SPM_TAG already exists"
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "✅ Tag $SPM_TAG does not exist, will create"
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+          
+      - name: Create and push tag
+        if: steps.check_tag.outputs.exists == 'false'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          VERSION="${{ steps.extract_version.outputs.version }}"
+          SPM_TAG="${{ steps.extract_version.outputs.spm_tag }}"
+          
+          # Create annotated tag
+          git tag -a "$SPM_TAG" -m "Release $VERSION
+
+Auto-generated from PR #${{ github.event.pull_request.number }}
+
+PR Title: ${{ github.event.pull_request.title }}
+PR Author: ${{ github.event.pull_request.user.login }}
+Merged by: ${{ github.event.pull_request.merged_by.login }}
+Merge commit: ${{ github.event.pull_request.merge_commit_sha }}"
+          
+          # Push the tag
+          git push origin "$SPM_TAG"
+          
+          echo "✅ Successfully created and pushed tag: $SPM_TAG"
+          
+      - name: Comment on PR
+        if: steps.check_tag.outputs.exists == 'false'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const version = '${{ steps.extract_version.outputs.version }}';
+            const spmTag = '${{ steps.extract_version.outputs.spm_tag }}';
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: ${{ github.event.pull_request.number }},
+              body: `## 🎉 Release Tag Created
+
+**Adapter Version:** \`${version}\`
+**SPM Tag:** \`${spmTag}\`
+
+The adapter is now available at:
+\`\`\`swift
+.package(url: "https://github.com/${context.repo.owner}/${context.repo.repo}.git", exact: "${spmTag}")
+\`\`\`
+
+---
+*This tag was automatically created by GitHub Actions*`
+            });

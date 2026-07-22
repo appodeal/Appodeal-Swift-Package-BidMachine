@@ -1,0 +1,132 @@
+name: Manual Tag Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      adapter_version:
+        description: 'Adapter version (e.g., 3.7.1.0)'
+        required: true
+        type: string
+      update_package_swift:
+        description: 'Update Package.swift URLs to this version'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  create-tag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate version format
+        run: |
+          VERSION="${{ github.event.inputs.adapter_version }}"
+          if ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "❌ Invalid adapter version format: $VERSION"
+            echo "Version must be in format: X.Y.Z.W (e.g., 3.7.1.0)"
+            exit 1
+          fi
+          echo "✅ Version format is valid: $VERSION"
+          
+      - name: Convert to SPM tag
+        id: convert_tag
+        run: |
+          VERSION="${{ github.event.inputs.adapter_version }}"
+          
+          # Convert to SPM tag format (e.g., 3.7.1.0 -> 3070100.0.0)
+          IFS='.' read -ra PARTS <<< "$VERSION"
+          MAJOR="${PARTS[0]}"
+          MINOR=$(printf "%02d" "${PARTS[1]}")
+          PATCH=$(printf "%02d" "${PARTS[2]}")
+          ADAPTER=$(printf "%02d" "${PARTS[3]}")
+          
+          SPM_TAG="${MAJOR}${MINOR}${PATCH}${ADAPTER}.0.0"
+          
+          echo "✅ SPM tag: $SPM_TAG"
+          echo "spm_tag=$SPM_TAG" >> $GITHUB_OUTPUT
+          
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          
+      - name: Check if tag exists
+        run: |
+          SPM_TAG="${{ steps.convert_tag.outputs.spm_tag }}"
+          if git rev-parse "refs/tags/$SPM_TAG" >/dev/null 2>&1; then
+            echo "❌ Tag $SPM_TAG already exists!"
+            exit 1
+          fi
+          echo "✅ Tag $SPM_TAG does not exist, proceeding..."
+          
+      - name: Update Package.swift if requested
+        if: github.event.inputs.update_package_swift == 'true'
+        run: |
+          VERSION="${{ github.event.inputs.adapter_version }}"
+          
+          # Update version in binary target URL
+          sed -i "s|/[0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+/|/${VERSION}/|g" Package.swift
+          
+          # Check if changes were made
+          if git diff --quiet Package.swift; then
+            echo "⚠️ No changes needed in Package.swift"
+          else
+            echo "✅ Updated Package.swift with version $VERSION"
+            git add Package.swift
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git commit -m "Update Package.swift to version $VERSION"
+            git push origin main
+          fi
+          
+      - name: Create and push tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          VERSION="${{ github.event.inputs.adapter_version }}"
+          SPM_TAG="${{ steps.convert_tag.outputs.spm_tag }}"
+          
+          # Create annotated tag
+          git tag -a "$SPM_TAG" -m "Release $VERSION
+
+Manual release created by: ${{ github.actor }}
+Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          
+          # Push the tag
+          git push origin "$SPM_TAG"
+          
+          echo "✅ Successfully created and pushed tag: $SPM_TAG"
+          
+      - name: Create GitHub Release
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const version = '${{ github.event.inputs.adapter_version }}';
+            const spmTag = '${{ steps.convert_tag.outputs.spm_tag }}';
+            
+            const release = await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: spmTag,
+              name: `Version ${version}`,
+              body: `## Adapter Version ${version}
+
+### Swift Package Manager
+
+Add this adapter to your project:
+\`\`\`swift
+.package(url: "https://github.com/${context.repo.owner}/${context.repo.repo}.git", exact: "${spmTag}")
+\`\`\`
+
+---
+*Released by @${{ github.actor }}*`,
+              draft: false,
+              prerelease: false
+            });
+            
+            console.log(`Created release: ${release.data.html_url}`);
