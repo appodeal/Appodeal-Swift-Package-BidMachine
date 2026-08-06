@@ -67,16 +67,20 @@ jobs:
 
           cat /tmp/arm.err
 
-          if ! grep -q "Auto merge is not allowed for this repository" /tmp/arm.err; then
-            echo "::error::Arming auto-merge failed for a reason other than the repository setting"
-            exit 1
-          fi
-
-          # "Allow auto-merge" is off in Settings → General → Pull Requests. Merge
-          # directly instead. Branch protection still decides whether that is
-          # permitted, so nothing is being bypassed here — a blocked merge simply
-          # fails and is retried by merge-approved on a later event.
-          echo "::warning::Allow auto-merge is disabled for this repository; merging directly instead"
+          # Arming can be refused for several ordinary reasons — "Auto merge is not
+          # allowed for this repository" when the setting is off, or "Pull request is
+          # in unstable status" while a check is still running or red. None of them
+          # mean the PR is broken, so none of them fail this job.
+          #
+          # Failing here is actively harmful: a red run of this workflow is itself a
+          # failing check, which puts the next PR into unstable status, which refuses
+          # arming again. PR #5 hit exactly that loop — it merged fine, yet the run
+          # was red.
+          #
+          # Try a direct merge instead. Branch protection still decides whether that
+          # is permitted, so nothing is bypassed; if it is not allowed yet,
+          # merge-approved retries on the next event.
+          echo "::warning::Could not arm auto-merge; attempting a direct merge instead"
 
           if gh pr merge "$PR_URL" --squash --delete-branch 2>/tmp/merge.err; then
             echo "✅ Merged"
