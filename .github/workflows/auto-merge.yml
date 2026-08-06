@@ -204,9 +204,21 @@ jobs:
           echo "::warning::PR #${PR_NUMBER} did not merge within 5 minutes; no tag created"
           echo "merged=false" >> "$GITHUB_OUTPUT"
 
+  # Runs unconditionally rather than gating on wait-for-merge's `merged` output.
+  #
+  # That gate did not work: on PR #4 wait-for-merge logged "PR #4 is merged" and
+  # set the output, yet this job was still skipped, in both the pull_request and
+  # the workflow_run run. Rather than keep guessing at the expression, drop it —
+  # it was never load-bearing. tag-release.yml decides from the state of main and
+  # the tags that already exist, so it is idempotent: if nothing merged, main is
+  # unchanged and the newest tag already serves that manifest, and the job reports
+  # "nothing to do". If main has drifted from its newest tag, it deserves a tag
+  # regardless of what this particular PR did.
+  #
+  # needs: is kept purely for ordering, so tagging happens after the wait.
   tag:
     needs: wait-for-merge
-    if: needs.wait-for-merge.outputs.merged == 'true'
+    if: always()
     uses: ./.github/workflows/tag-release.yml
     permissions:
       contents: write
