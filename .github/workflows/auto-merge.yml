@@ -40,7 +40,8 @@ jobs:
         github.event.pull_request.user.login == 'appodeal-runner' ||
         github.event.pull_request.user.login == 'appodeal-bot' ||
         startsWith(github.event.pull_request.head.ref, 'release/') ||
-        startsWith(github.event.pull_request.head.ref, 'bot/')
+        startsWith(github.event.pull_request.head.ref, 'bot/') ||
+        startsWith(github.event.pull_request.head.ref, 'claude/')
       )
     steps:
       - name: Enable auto-merge
@@ -133,7 +134,8 @@ jobs:
                 "$PR_USER" != "appodeal-runner" &&
                 "$PR_USER" != "appodeal-bot" &&
                 ! "$PR_BRANCH" =~ ^release/ &&
-                ! "$PR_BRANCH" =~ ^bot/ ]]; then
+                ! "$PR_BRANCH" =~ ^bot/ &&
+                ! "$PR_BRANCH" =~ ^claude/ ]]; then
             echo "❌ PR is not from a trusted source"
             exit 0
           fi
