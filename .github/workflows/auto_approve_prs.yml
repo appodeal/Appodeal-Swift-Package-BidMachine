@@ -17,7 +17,8 @@ jobs:
       github.event.pull_request.user.login == 'appodeal-runner' ||
       github.event.pull_request.user.login == 'appodeal-bot' ||
       startsWith(github.event.pull_request.head.ref, 'release/') ||
-      startsWith(github.event.pull_request.head.ref, 'bot/')
+      startsWith(github.event.pull_request.head.ref, 'bot/') ||
+      startsWith(github.event.pull_request.head.ref, 'claude/')
     steps:
       - name: Approve
         env:
