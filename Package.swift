@@ -18,7 +18,7 @@ let package = Package(
         .target(
             name: "AppodealBidMachineAdapterWrapper",
             dependencies: [
-                .product(name: "Appodeal", package: "Appodeal-Swift-Package"),
+                .product(name: "AppodealSDK", package: "Appodeal-Swift-Package"),
                 .product(name: "BidMachine", package: "BidMachine-SPM"),
                 .target(name: "AppodealBidMachineAdapter"),
             ],
