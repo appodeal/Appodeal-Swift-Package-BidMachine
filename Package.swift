@@ -12,7 +12,7 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/appodeal/Appodeal-Swift-Package.git", .upToNextMajor(from: "4.3.0")),
-        .package(url: "https://github.com/bidmachine/BidMachine-SPM.git", exact: "3.7.1"),
+        .package(url: "https://github.com/bidmachine/BidMachine-SPM", exact: "3.8.0"),
     ],
     targets: [
         .target(
@@ -27,8 +27,9 @@ let package = Package(
         ),
         .binaryTarget(
             name: "AppodealBidMachineAdapter",
-            url: "https://appodeal-ios.s3.us-west-1.amazonaws.com/Appodeal/SPM/AppodealBidMachineAdapter/3.7.1.2/AppodealBidMachineAdapter.xcframework.zip",
-            checksum: "234419bc642b6f0339e989755943e6079192786fe224064de00a66c728f93ea1"
+            url: "https://appodeal-ios.s3.us-west-1.amazonaws.com/Appodeal/SPM/AppodealBidMachineAdapter/3.8.0.0/8d77d7c8f13a/AppodealBidMachineAdapter.xcframework.zip",
+            checksum: "8d77d7c8f13a2303c8728d5a5b74a155bddf69b332b04951ab95192422fead07"
         ),
+
     ]
 )
